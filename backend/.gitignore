@@ -1,0 +1,33 @@
+# PDF files
+*.pdf
+
+# Uploaded documents
+data/pdfs/
+
+# Python Virtual Environment
+venv/
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment Variables
+.env
+
+# VS Code Settings
+.vscode/
+
+# Log Files
+*.log
+
+# Node
+frontend/node_modules/
+frontend/.next/
+
+# Firebase Private Service Account Key (Security)
+firebase-service-account.json
