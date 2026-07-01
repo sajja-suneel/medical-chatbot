@@ -1,0 +1,180 @@
+/* C:\Users\sajja\vscode\health\frontend\app\globals.css */
+:root {
+  /* Common Core Colors (Premium Light Theme: White & Gray Base) */
+  --bg-base: #F8FAFC;
+  --bg-sidebar: #FFFFFF;
+  --border-color: #EEF2F6;
+  --text-primary: #0F172A; /* Slate 900 text */
+  --text-secondary: #2563EB; /* Royal blue accent text */
+  --text-muted: #64748B;
+
+  /* Premium Royal Blue Color System */
+  --med-primary: #3B82F6; /* Royal Blue */
+  --med-primary-glow: rgba(59, 130, 246, 0.06);
+  --med-accent: #2563EB; /* Cobalt accent */
+  --med-bubble: #FFFFFF; /* White cards for assistant bubbles */
+  --med-bubble-border: #EEF2F6;
+
+  /* Active Color Variables */
+  --primary: var(--med-primary);
+  --primary-glow: var(--med-primary-glow);
+  --accent: var(--med-accent);
+  --bubble: var(--med-bubble);
+  --bubble-border: var(--med-bubble-border);
+}
+
+/* Swapped variables when Dark Mode is active */
+[data-theme="dark"] {
+  --bg-base: #0F172A;        /* Deep obsidian/dark blue background */
+  --bg-sidebar: #1E293B;     /* Slate dark sidebar */
+  --border-color: #334155;    /* Slate border */
+  --text-primary: #F8FAFC;   /* Off-white text */
+  --text-secondary: #93C5FD; /* Light blue accent text */
+  --text-muted: #64748B;     /* Darker muted text */
+
+  --med-bubble: #1E293B;     /* Dark bubble background */
+  --med-bubble-border: #334155;
+  --med-primary-glow: rgba(147, 197, 253, 0.15);
+}
+
+/* Global Reset & Box Sizing */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.2s ease;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Outfit', sans-serif;
+}
+
+/* Glassmorphism Panel */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="dark"] .glass-panel {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border-color);
+}
+
+.glass-card {
+  background: rgba(15, 23, 42, 0.01);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  background: rgba(15, 23, 42, 0.02);
+  border-color: rgba(15, 23, 42, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.2);
+}
+
+/* Keyframes & Animations */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bounceDot {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.animate-fade-in {
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  background-color: var(--text-primary);
+  border-radius: 50%;
+  display: inline-block;
+  animation: bounceDot 1.4s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Background glowing meshes */
+.bg-mesh {
+  position: absolute;
+  top: -10%;
+  right: -10%;
+  width: 50vw;
+  height: 50vh;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.04;
+  background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bg-mesh-secondary {
+  position: absolute;
+  bottom: -10%;
+  left: -10%;
+  width: 45vw;
+  height: 45vh;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.03;
+  background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
