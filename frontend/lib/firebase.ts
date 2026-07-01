@@ -1,20 +1,18 @@
 // frontend/lib/firebase.ts
-
-import { initializeApp, getApps, getApp,} from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
- 
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCPhfDy7FOFsvPueMq3apbiVK9RjHIDqhw",
-  authDomain: "healthcare-chatbot-4f585.firebaseapp.com",
-  projectId: "healthcare-chatbot-4f585",
-  storageBucket: "healthcare-chatbot-4f585.firebasestorage.app",
-  messagingSenderId: "1091407216303",
-  appId: "1:1091407216303:web:557fbed00f8d05b808de5a",
-  measurementId: "G-ZL0TZ951SD"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-// Initialize Firebase App
+// Initialize Firebase App (using singleton pattern for hot reloads)
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 // Export Auth instance

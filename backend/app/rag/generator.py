@@ -79,7 +79,11 @@ class RAGResponseGenerator:
         cached_payload = get_cached_response(question)
         if cached_payload:
             try:
-                return json.loads(cached_payload)
+                parsed = json.loads(cached_payload)
+                # Save cache hit interaction to MongoDB history
+                save_message(session_id, "user", question, email)
+                save_message(session_id, "model", parsed["answer"], email)
+                return parsed
             except Exception:
                 pass
 
@@ -133,9 +137,15 @@ class RAGResponseGenerator:
         cached_payload = get_cached_response(question)
         if cached_payload:
             try:
+                logger.info("CACHE HIT 🚀 Streaming from Redis memory")
                 parsed = json.loads(cached_payload)
-                yield f"data: {json.dumps({'metadata': parsed['metadata']})}\n\n"
                 cached_text = parsed["answer"]
+
+                # Save cache hit interaction to MongoDB history
+                save_message(session_id, "user", question, email)
+                save_message(session_id, "model", cached_text, email)
+
+                yield f"data: {json.dumps({'metadata': parsed['metadata']})}\n\n"
                 chunk_size = 25
                 for i in range(0, len(cached_text), chunk_size):
                     yield f"data: {json.dumps({'token': cached_text[i:i+chunk_size]})}\n\n"

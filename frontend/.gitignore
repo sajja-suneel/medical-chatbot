@@ -49,7 +49,7 @@ node_modules/
 out/
 
 # Local env overrides
-.env*.local
+.env*
 
 # Debug logs
 npm-debug.log*

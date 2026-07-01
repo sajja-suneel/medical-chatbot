@@ -152,6 +152,9 @@ with the actual topic from conversation history.
 7. HISTORY RECALL EXCEPTION (New Rule)
 - If the user asks about previous questions or history recall (e.g., "what was my first question", "what was my second question", "what was my third question", "what did I ask second"), preserve the question exactly as the output. Do not reformulate it.
 
+8. STANDALONE QUESTIONS EXCEPTION (New Rule)
+- If the user's follow-up question is already a complete, clear, and standalone question on its own (e.g., "What is cancer?", "What is malaria?"), do not change, reformulate, or combine it with the history. Return it exactly as it is.
+
 EXAMPLES
 
 History:
