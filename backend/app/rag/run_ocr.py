@@ -1,3 +1,4 @@
+# backend/run_ocr.py
 """
 Run PDF loading with smart OCR from the backend folder:
 
@@ -6,37 +7,45 @@ Run PDF loading with smart OCR from the backend folder:
 """
 
 import sys
-
 from app.rag.pdf_loader import (
     load_all_documents,
     process_document,
 )
 
 
-def main():
+class OCRRunner:
+    """A runner class to execute document loading and OCR processing from the command line."""
 
-    if len(sys.argv) > 1:
+    def __init__(self, default_folder: str = "data/pdfs"):
+        self.default_folder = default_folder
 
-        file_path = sys.argv[1]
+    def run(self, args: list = None):
+        """Runs the document extraction process based on command line arguments."""
+        if args is None:
+            args = sys.argv
 
-        text = process_document(file_path)
+        if len(args) > 1:
+            file_path = args[1]
+            # process_document returns a list of pages: [{"text": ..., "page": ...}]
+            pages = process_document(file_path)
 
-        print(f"Characters: {len(text)}")
-        print("\nPreview:\n")
-        print(text[:1000])
+            total_chars = sum(len(p.get("text", "")) for p in pages)
+            print(f"Total Pages: {len(pages)}")
+            print(f"Total Characters: {total_chars}")
+            print("\nPreview of Page 1:\n")
+            if pages:
+                print(pages[0]["text"][:1000])
+            return
 
-        return
+        docs = load_all_documents(self.default_folder)
+        print(f"Total Pages Processed: {len(docs)}")
 
-    docs = load_all_documents("data/pdfs")
-
-    print(f"Total Documents: {len(docs)}")
-
-    if docs:
-
-        print(f"\nSource: {docs[0]['source']}")
-        print("\nContent Preview:\n")
-        print(docs[0]["text"][:1000])
+        if docs:
+            print(f"\nSource: {docs[0]['source']} | Page: {docs[0]['page']}")
+            print("\nContent Preview:\n")
+            print(docs[0]["text"][:1000])
 
 
 if __name__ == "__main__":
-    main()
+    runner = OCRRunner()
+    runner.run()

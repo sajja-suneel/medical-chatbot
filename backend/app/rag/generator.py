@@ -1,4 +1,4 @@
-# C:\Users\sajja\vscode\health\backend\app\rag\generator.py
+# backend/app/rag/generator.py
 import os
 import time
 import uuid
@@ -17,6 +17,10 @@ load_dotenv()
 
 
 class RAGResponseGenerator:
+    """A class to handle standalone question reformulation, hybrid database retrieval,
+    Redis caching, and final response generation (streaming and standard).
+    """
+
     def __init__(
         self,
         model_name: str = "llama-3.3-70b-versatile",
@@ -35,6 +39,7 @@ class RAGResponseGenerator:
         init_db()
 
     def _reformulate_question(self, question: str, context_window: list[dict]) -> str:
+        """Uses LLM to rewrite a follow-up query into a standalone query using context history."""
         if not context_window:
             return question
 
@@ -54,6 +59,7 @@ class RAGResponseGenerator:
         return question
 
     def _build_metadata_package(self, session_id: str, question: str, standalone_question: str, docs: list[dict]) -> dict:
+        """Packages context retrieval chunks into a serialized dict for client display."""
         chunk_details = []
         for index, doc in enumerate(docs):
             chunk_details.append({
@@ -73,6 +79,7 @@ class RAGResponseGenerator:
         }
 
     def generate_answer(self, question: str, session_id: str = None, email: str = None) -> dict:
+        """Generates a complete answer using standard non-streaming completions (uses Redis cache fallback)."""
         if session_id is None:
             session_id = str(uuid.uuid4())
 
@@ -131,6 +138,7 @@ class RAGResponseGenerator:
             return {"answer": "Error generating response.", "sources": [], "metadata": {"error": str(e)}}
 
     def generate_answer_stream(self, question: str, session_id: str = None, email: str = None) -> Generator[str, None, None]:
+        """Generates and streams answer tokens in Server-Sent Events (SSE) format."""
         if session_id is None:
             session_id = str(uuid.uuid4())
 

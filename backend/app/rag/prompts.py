@@ -1,21 +1,28 @@
+# C:\Users\sajja\vscode\health\backend\app\rag\prompts.py
+from app.rag.prompt_templates import HEALTHCARE_ASSISTANT_INSTRUCTIONS, CONTEXTUALIZE_INSTRUCTIONS
 
 
-from app.rag.prompt_templates import HEALTHCARE_ASSISTANT_INSTRUCTIONS,CONTEXTUALIZE_INSTRUCTIONS
- 
+class PromptManager:
+    """A class to construct generation and contextualization prompts for the LLM."""
 
-def build_prompt(question, context, chat_history=None):
-    """
-    Constructs a prompt for the Gemini model using the medical context,
-    the user's question, and optional chat history.
-    """
-    history_str = "No conversation history."
-    if chat_history:
-        history_str = "\n".join(
-            f"{msg['role'].capitalize()}: {msg['content']}"
-            for msg in chat_history
-        )
+    def __init__(
+        self,
+        assistant_instructions: str = HEALTHCARE_ASSISTANT_INSTRUCTIONS,
+        contextualize_instructions: str = CONTEXTUALIZE_INSTRUCTIONS,
+    ):
+        self.assistant_instructions = assistant_instructions
+        self.contextualize_instructions = contextualize_instructions
 
-    return f"""{HEALTHCARE_ASSISTANT_INSTRUCTIONS}
+    def build_prompt(self, question: str, context: str, chat_history: list = None) -> str:
+        """Constructs a prompt using the medical context, question, and chat history."""
+        history_str = "No conversation history."
+        if chat_history:
+            history_str = "\n".join(
+                f"{msg['role'].capitalize()}: {msg['content']}"
+                for msg in chat_history
+            )
+
+        return f"""{self.assistant_instructions}
 
 Retrieved Medical Context:
 {context}
@@ -29,17 +36,13 @@ User Question:
 Answer:
 """
 
-
-def build_contextualize_prompt(question, chat_history):
-    """
-    Constructs a prompt instructing the model to reformulate a follow-up question
-    to be a standalone question based on the conversation history.
-    """
-    history_str = "\n".join(
-        f"{msg['role'].capitalize()}: {msg['content']}"
-        for msg in chat_history
-    )
-    return f"""{CONTEXTUALIZE_INSTRUCTIONS}
+    def build_contextualize_prompt(self, question: str, chat_history: list) -> str:
+        """Constructs a prompt instructing the model to reformulate a follow-up question."""
+        history_str = "\n".join(
+            f"{msg['role'].capitalize()}: {msg['content']}"
+            for msg in chat_history
+        )
+        return f"""{self.contextualize_instructions}
 
 Conversation History:
 {history_str}
@@ -47,3 +50,11 @@ Conversation History:
 Follow-up Question: {question}
 
 Standalone Question:"""
+
+
+# ==========================================================
+# Compatibility Layer (Adapter) for Module-Level Imports
+# ==========================================================
+_prompt_manager = PromptManager()
+build_prompt = _prompt_manager.build_prompt
+build_contextualize_prompt = _prompt_manager.build_contextualize_prompt

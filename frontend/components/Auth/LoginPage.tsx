@@ -9,7 +9,8 @@ import {
   updateProfile,
   GoogleAuthProvider,
   signInWithPopup,
-  sendEmailVerification
+  sendEmailVerification,
+  sendPasswordResetEmail // Added for forgot password feature
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { InfoPanel } from './InfoPanel';
@@ -31,6 +32,7 @@ interface LoginPageProps {
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false); // Controls forgot password screen
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -90,8 +92,8 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         body: JSON.stringify({
           name: user.displayName || 'Google User',
           email: user.email || '',
-          password: '', // Ignored in DB
-          role: 'Medical Assistant' // Default role for external SSO
+          password: '', 
+          role: 'Medical Assistant' 
         }),
       });
       const data = await response.json();
@@ -136,7 +138,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         await sendEmailVerification(user);
 
         setSuccessMsg('Verification email sent! Check your inbox to verify your email, then click "Confirm Verification" below.');
-        setNeedsVerification(true); // Switch to verification checking screen
+        setNeedsVerification(true); 
       } else {
         // 1. Sign in using Firebase Auth
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -182,7 +184,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     try {
       const user = auth.currentUser;
       if (user) {
-        await user.reload(); // Sync state with Firebase servers
+        await user.reload(); 
         if (user.emailVerified) {
           // Sync profile details to local MongoDB
           const response = await fetch('http://localhost:8000/auth/signup', {
@@ -208,6 +210,29 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
       }
     } catch (err: any) {
       setError(err.message || 'Email verification check failed.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Forgot Password Handler
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+    setIsLoading(true);
+
+    if (!email.includes('@') || !email.includes('.')) {
+      setError('Please enter a valid clinic email address.');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setSuccessMsg('A password reset link has been sent to your email address.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to send password reset email.');
     } finally {
       setIsLoading(false);
     }
@@ -271,26 +296,78 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
               <div style={{ width: '64px', height: '64px', borderRadius: '50%', backgroundColor: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ width: '46px', height: '46px', borderRadius: '50%', backgroundColor: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFFFFF' }}>
-                  {isSignUp ? <UserPlus size={20} /> : <Lock size={20} />}
+                  {isForgotPassword ? <Lock size={20} /> : (isSignUp ? <UserPlus size={20} /> : <Lock size={20} />)}
                 </div>
               </div>
             </div>
 
             <div style={{ textAlign: 'center', marginBottom: '28px' }}>
               <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: '0 0 6px 0', fontFamily: "'Outfit', sans-serif" }}>
-                {needsVerification ? 'Verify Your Email' : (isSignUp ? 'Create Account' : 'Welcome Back')}
+                {isForgotPassword 
+                  ? 'Reset Your Password' 
+                  : (needsVerification ? 'Verify Your Email' : (isSignUp ? 'Create Account' : 'Welcome Back'))}
               </h2>
               <p style={{ fontSize: '13px', color: '#64748B', fontWeight: 500, margin: 0 }}>
-                {needsVerification 
-                  ? 'We sent a verification link to your email. Click it to confirm.' 
-                  : (isSignUp ? 'Fill in your details to create a secure portal account' : 'Enter your credentials to access your secure portal')}
+                {isForgotPassword
+                  ? 'Enter your email to receive a password reset link.'
+                  : (needsVerification 
+                      ? 'We sent a verification link to your email. Click it to confirm.' 
+                      : (isSignUp ? 'Fill in your details to create a secure portal account' : 'Enter your credentials to access your secure portal'))}
               </p>
             </div>
 
             <StatusAlerts error={error} successMsg={successMsg} />
 
-            {/* Email Verification Screen */}
-            {needsVerification ? (
+            {/* Forgot Password Screen */}
+            {isForgotPassword ? (
+              <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <AuthFormInput
+                  label="Clinic Email"
+                  type="email"
+                  value={email}
+                  onChange={setEmail}
+                  placeholder="doctor@svhospital.com"
+                  icon={<Mail size={16} color="#94A3B8" />}
+                />
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  style={{
+                    width: '100%',
+                    background: 'linear-gradient(135deg, #3B82F6 0%, #06B6D4 100%)',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    padding: '12px',
+                    borderRadius: '10px',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    cursor: isLoading ? 'default' : 'pointer',
+                    marginTop: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 14px rgba(59, 130, 246, 0.3)',
+                  }}
+                >
+                  {isLoading ? 'Sending...' : 'Send Reset Link'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotPassword(false);
+                    setError('');
+                    setSuccessMsg('');
+                  }}
+                  style={{ background: 'none', border: 'none', color: '#64748B', fontWeight: 600, cursor: 'pointer', fontSize: '12px', textDecoration: 'underline', marginTop: '10px' }}
+                >
+                  Back to Login
+                </button>
+              </form>
+            ) : needsVerification ? (
+              /* Email Verification Screen */
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '10px' }}>
                 <button
                   onClick={checkEmailVerification}
@@ -353,6 +430,23 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                   percentage={pwdStrengthPercentage}
                   color={pwdStrengthColor}
                 />
+
+                {/* Forgot Password Link (Only shown in sign-in mode) */}
+                {!isSignUp && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsForgotPassword(true);
+                        setError('');
+                        setSuccessMsg('');
+                      }}
+                      style={{ background: 'none', border: 'none', color: '#3B82F6', fontWeight: 600, fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
+                )}
 
                 {isSignUp && <RoleSelect value={role} onChange={setRole} />}
 
@@ -441,6 +535,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 type="button"
                 onClick={() => {
                   setIsSignUp(!isSignUp);
+                  setIsForgotPassword(false);
                   setError('');
                   setSuccessMsg('');
                   setPassword('');
