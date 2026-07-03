@@ -91,6 +91,44 @@ export function MessageBubble({ msg, isDark, onSuggestionClick }: MessageBubbleP
       >
         {/* Render text with markdown logic */}
         {formatMessageContent(msg.content)}
+
+        {/* 📄 Retrieved Source Citations */}
+        {!isUser && msg.chunks && msg.chunks.length > 0 && (
+          <div style={{ 
+            display: 'flex', 
+            flexWrap: 'wrap', 
+            gap: '6px', 
+            marginTop: '12px', 
+            paddingTop: '10px', 
+            borderTop: `1px solid ${isDark ? '#374151' : '#E2E8F0'}`,
+            alignItems: 'center'
+          }}>
+            <span style={{ fontSize: '10px', fontWeight: 850, color: isDark ? '#9CA3AF' : '#64748B', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Sources:</span>
+            {Array.from(new Set(msg.chunks.map(c => `${c.source}#Page ${c.page_no}`))).map((citation, idx) => {
+              const [source, page] = citation.split('#');
+              return (
+                <div 
+                  key={idx}
+                  style={{
+                    backgroundColor: isDark ? '#2D3748' : '#F8FAFC',
+                    border: `1px solid ${isDark ? '#4A5568' : '#CBD5E1'}`,
+                    color: isDark ? '#E2E8F0' : '#334155',
+                    fontSize: '10.5px',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <span>📄 {source}</span>
+                  <span style={{ color: '#3B82F6', fontSize: '9.5px' }}>({page})</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
         
         {/* Bottom row containing Time Stamp and blue double checkmarks */}
         <div style={{ 

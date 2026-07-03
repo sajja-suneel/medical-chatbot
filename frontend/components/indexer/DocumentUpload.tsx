@@ -8,15 +8,20 @@ import { DragDropZone } from './DragDropZone';
 import { StatusDisplay } from './StatusDisplay';
 import { QuickActionsGrid } from './QuickActionsGrid';
 import { StatsDashboard } from './StatsDashboard';
+import { Globe, FileText, CheckSquare, Square } from 'lucide-react';
 
 interface DocumentUploadProps {
   onClose: () => void;
   onNewChat?: () => void;
   sessionCount?: number;
-  token?: string; // Accept the authorization token as a prop
+  token?: string; 
 }
 
 export default function DocumentUpload({ onClose, onNewChat, sessionCount, token }: DocumentUploadProps) {
+  const [activeTab, setActiveTab] = useState<'file' | 'url'>('file');
+  const [urlInput, setUrlInput] = useState('');
+  const [isDynamic, setIsDynamic] = useState(false);
+
   const [dragActive, setDragActive] = useState(false);
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'indexing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
@@ -26,11 +31,11 @@ export default function DocumentUpload({ onClose, onNewChat, sessionCount, token
   const [localSessionCount, setLocalSessionCount] = useState(0);
 
   const fetchExistingFiles = async () => {
-    if (!token) return; // Do not fetch if token is not loaded yet
+    if (!token) return; 
     try {
       const response = await fetch('/api/files', {
         headers: {
-          'Authorization': `Bearer ${token}` // Attach authorization token
+          'Authorization': `Bearer ${token}` 
         }
       });
       if (response.ok) {
@@ -42,7 +47,6 @@ export default function DocumentUpload({ onClose, onNewChat, sessionCount, token
     }
   };
 
-  // Fallback to localStorage count if prop is not provided
   useEffect(() => {
     if (sessionCount !== undefined) return;
 
@@ -82,7 +86,7 @@ export default function DocumentUpload({ onClose, onNewChat, sessionCount, token
 
   useEffect(() => {
     fetchExistingFiles();
-  }, [uploadState, token]); // Re-fetch when token is loaded or uploadState changes
+  }, [uploadState, token]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault(); e.stopPropagation();
@@ -131,7 +135,7 @@ export default function DocumentUpload({ onClose, onNewChat, sessionCount, token
       const response = await fetch('/api/upload-files', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}` // Attach token
+          'Authorization': `Bearer ${token}` 
         },
         body: formData,
       });
@@ -154,6 +158,52 @@ export default function DocumentUpload({ onClose, onNewChat, sessionCount, token
     }
   };
 
+  // URL Scraping API Handler
+  const handleScrapeURL = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!urlInput) return;
+
+    if (!token) {
+      setUploadState('error');
+      setErrorMessage('Authentication token is missing. Please sign in again.');
+      return;
+    }
+
+    setUploadState('uploading');
+    setErrorMessage('');
+
+    try {
+      const response = await fetch('/api/scrape-url', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          url: urlInput,
+          is_dynamic: isDynamic
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Web scraping failed');
+      }
+
+      setUploadState('indexing');
+      
+      setTimeout(() => {
+        setUploadState('success');
+        setUrlInput('');
+        fetchExistingFiles();
+      }, 3000);
+
+    } catch (err: any) {
+      setUploadState('error');
+      setErrorMessage(err.message || 'Error occurred during scraping');
+    }
+  };
+
   const handleDeleteFile = async (filename: string) => {
     if (!token) return;
     try {
@@ -161,7 +211,7 @@ export default function DocumentUpload({ onClose, onNewChat, sessionCount, token
       const response = await fetch(`/api/files/${encodeURIComponent(filename)}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}` // Attach token
+          'Authorization': `Bearer ${token}` 
         }
       });
       if (response.ok) {
@@ -184,7 +234,7 @@ export default function DocumentUpload({ onClose, onNewChat, sessionCount, token
       const response = await fetch('/api/files', {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}` // Attach token
+          'Authorization': `Bearer ${token}` 
         }
       });
       if (response.ok) {
@@ -213,10 +263,40 @@ export default function DocumentUpload({ onClose, onNewChat, sessionCount, token
     <div style={{ width: '320px', backgroundColor: 'var(--bg-sidebar)', borderLeft: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', height: '100%', padding: '24px 20px', zIndex: 10, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       
       <SidebarHeader onClose={onClose} />
-      
-      <DragDropZone dragActive={dragActive} onDrag={handleDrag} onDrop={handleDrop} onChange={handleChange} />
-      
-      <StatusDisplay uploadState={uploadState} errorMessage={errorMessage} onReset={() => setUploadState('idle')} />
+
+      {/* Tabs Header */}
+      {!showFileList && (
+        <div style={{ display: 'flex', backgroundColor: 'rgba(0, 0, 0, 0.05)', padding: '4px', borderRadius: '8px', marginBottom: '16px' }}>
+          <button
+            onClick={() => setActiveTab('file')}
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              padding: '8px', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
+              cursor: 'pointer', backgroundColor: activeTab === 'file' ? '#FFFFFF' : 'transparent',
+              color: activeTab === 'file' ? '#0F172A' : '#64748B',
+              boxShadow: activeTab === 'file' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              transition: 'all 0.2s'
+            }}
+          >
+            <FileText size={14} />
+            <span>Files</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('url')}
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              padding: '8px', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 600,
+              cursor: 'pointer', backgroundColor: activeTab === 'url' ? '#FFFFFF' : 'transparent',
+              color: activeTab === 'url' ? '#0F172A' : '#64748B',
+              boxShadow: activeTab === 'url' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Globe size={14} />
+            <span>Web URL</span>
+          </button>
+        </div>
+      )}
 
       {showFileList ? (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', marginTop: '20px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
@@ -235,6 +315,58 @@ export default function DocumentUpload({ onClose, onNewChat, sessionCount, token
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          {activeTab === 'file' ? (
+            <DragDropZone dragActive={dragActive} onDrag={handleDrag} onDrop={handleDrop} onChange={handleChange} />
+          ) : (
+            /* Scrape URL Form */
+            <form onSubmit={handleScrapeURL} style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', border: '1px dashed var(--border-color)', borderRadius: '12px', backgroundColor: 'rgba(255, 255, 255, 0.4)', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Website Link</label>
+                <input
+                  type="url"
+                  required
+                  placeholder="https://wikipedia.org/wiki/Diabetes"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  style={{
+                    width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border-color)',
+                    fontSize: '13px', backgroundColor: '#FFFFFF', color: '#0F172A', outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div 
+                onClick={() => setIsDynamic(!isDynamic)}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '4px 0' }}
+              >
+                {isDynamic ? (
+                  <CheckSquare size={16} color="#3B82F6" style={{ flexShrink: 0 }} />
+                ) : (
+                  <Square size={16} color="#94A3B8" style={{ flexShrink: 0 }} />
+                )}
+                <span style={{ fontSize: '12px', fontWeight: 500, color: '#475569', userSelect: 'none' }}>
+                  Execute JavaScript (Dynamic Sites)
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                disabled={uploadState === 'uploading' || !urlInput}
+                style={{
+                  width: '100%', padding: '10px', borderRadius: '8px', border: 'none',
+                  backgroundColor: !urlInput ? '#CBD5E1' : '#3B82F6',
+                  color: '#FFFFFF', fontWeight: 700, fontSize: '12.5px', cursor: !urlInput ? 'default' : 'pointer',
+                  transition: 'background-color 0.2s', marginTop: '4px',
+                  boxShadow: urlInput ? '0 4px 10px rgba(59, 130, 246, 0.2)' : 'none'
+                }}
+              >
+                {uploadState === 'uploading' ? 'Scraping...' : 'Scrape & Index'}
+              </button>
+            </form>
+          )}
+
+          <StatusDisplay uploadState={uploadState} errorMessage={errorMessage} onReset={() => setUploadState('idle')} />
+
           <QuickActionsGrid onNewChat={handleNewChatClick} onViewDocuments={() => setShowFileList(true)} />
           <StatsDashboard sessionCount={activeSessionCount} documentCount={existingFiles.length} />
         </div>

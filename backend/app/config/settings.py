@@ -22,5 +22,5 @@ EMBEDDING_MODEL = os.getenv(
     "all-MiniLM-L6-v2"
 )
 
-TOP_K = 5
-SCORE_THRESHOLD = 0.40
+TOP_K = 3
+SCORE_THRESHOLD = 0.70

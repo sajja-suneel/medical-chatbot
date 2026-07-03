@@ -17,3 +17,6 @@ pymongo== 4.3.3
 fastembed==0.1.0
 redis==5.0.1
 firebase-admin==6.0.0
+playwright==1.44.0 
+chromium==1.44.0
+beautifulsoup4==4.13.2

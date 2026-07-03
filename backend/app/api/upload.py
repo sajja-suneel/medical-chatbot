@@ -1,13 +1,19 @@
 # backend/app/api/upload.py
 import os
+import re
 from typing import List
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, Depends
+from pydantic import BaseModel
 from app.rag.vector_store import store_vectors, client, COLLECTION_NAME, create_collection
 from app.utils.firebase_verifier import get_current_user
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 
 router = APIRouter()
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".csv", ".xlsx", ".xls", ".txt"}
+
+class URLScrapeRequest(BaseModel):
+    url: str
+    is_dynamic: bool = False
 
 def run_rag_indexing():
     store_vectors()
@@ -16,6 +22,60 @@ def run_rag_indexing():
 def index_documents(background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     background_tasks.add_task(run_rag_indexing)
     return {"message": "RAG indexing started"}
+
+@router.post("/scrape-url")
+async def scrape_and_index_url(
+    request: URLScrapeRequest,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user)
+):
+    url = request.url.strip()
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid URL protocol. Must start with http:// or https://"
+        )
+
+    try:
+        from app.rag.scraper import WebScraper
+        scraper = WebScraper()
+
+        if request.is_dynamic:
+            text_content = scraper.scrape_dynamic(url)
+        else:
+            text_content = scraper.scrape_static(url)
+
+        if not text_content or len(text_content.strip()) < 20:
+            raise HTTPException(
+                status_code=400,
+                detail="The scraped website did not return enough text content to index."
+            )
+
+        # Sanitize the URL to construct a clean file name
+        clean_name = re.sub(r'[^a-zA-Z0-9]', '_', url.replace("https://", "").replace("http://", ""))[:60]
+        filename = f"webpage_{clean_name}.txt"
+
+        # Save webpage content locally in data folder
+        pdf_dir = "data/pdfs"
+        os.makedirs(pdf_dir, exist_ok=True)
+        file_path = os.path.join(pdf_dir, filename)
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(text_content)
+
+        # Ingest text chunks into Qdrant vector database
+        background_tasks.add_task(run_rag_indexing)
+
+        return {
+            "message": f"Successfully scraped and indexed website.",
+            "filename": filename,
+            "char_count": len(text_content)
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to scrape webpage: {str(e)}"
+        )
 
 @router.post("/upload-files")
 async def upload_multiple_files(

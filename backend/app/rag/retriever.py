@@ -7,12 +7,15 @@ from app.config.settings import (
     QDRANT_URL,
     QDRANT_API_KEY,
     TOP_K,
+    SCORE_THRESHOLD,
 )
 from app.rag.log import logger
 
 
 class DocumentRetriever:
-    """A class to handle hybrid (dense and sparse) retrieval from Qdrant using RRF."""
+    """A class to handle hybrid (dense and sparse) retrieval from Qdrant using RRF
+    and filter results by a relevance threshold.
+    """
 
     def __init__(
         self,
@@ -20,15 +23,21 @@ class DocumentRetriever:
         api_key: str = QDRANT_API_KEY,
         collection_name: str = COLLECTION_NAME,
         default_top_k: int = TOP_K,
+        default_threshold: float = SCORE_THRESHOLD,
     ):
         self.client = QdrantClient(url=url, api_key=api_key)
         self.collection_name = collection_name
         self.default_top_k = default_top_k
+        self.default_threshold = default_threshold
 
-    def retrieve_context(self, question: str, top_k: int = None) -> list:
-        """Retrieves relevant document chunks from Qdrant using Hybrid Search."""
+    def retrieve_context(self, question: str, top_k: int = None, threshold: float = None) -> list:
+        """Retrieves relevant document chunks from Qdrant using Hybrid Search (RRF)
+        and filters out results with scores below the threshold.
+        """
         k = top_k or self.default_top_k
-        logger.info(f"User Query: {question}")
+        score_threshold = threshold if threshold is not None else self.default_threshold
+        
+        logger.info(f"User Query: {question} | Target Top-K: {k} | RRF Threshold: {score_threshold}")
         dense_embedding = get_dense_embedding(question)
         sparse_emb = get_sparse_embedding(question)
 
@@ -58,14 +67,22 @@ class DocumentRetriever:
                 limit=k
             )
             results = search_result.points
-            logger.info(f"Retrieved {len(results)} hybrid search results")
+            logger.info(f"Retrieved {len(results)} hybrid search results from Qdrant.")
         except Exception as e:
             logger.error(f"Search error: {e}")
             return []
 
         retrieved_docs = []
+        filtered_count = 0
+
         for result in results:
             score = getattr(result, "score", 0.0)
+
+            # Apply RRF score threshold filter to exclude low-quality results
+            if score < score_threshold:
+                filtered_count += 1
+                continue
+
             if result.payload:
                 payload_metadata = result.payload.get("metadata", {})
                 if not isinstance(payload_metadata, dict):
@@ -81,7 +98,9 @@ class DocumentRetriever:
                     "score": round(score, 4)
                 })
 
-        logger.info(f"Retrieved {len(retrieved_docs)} chunks after RRF filtering")
+        logger.info(
+            f"Results Summary: {len(retrieved_docs)} kept | {filtered_count} filtered out (score < {score_threshold})"
+        )
         return retrieved_docs
 
 
