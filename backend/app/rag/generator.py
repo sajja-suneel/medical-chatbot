@@ -24,11 +24,13 @@ class RAGResponseGenerator:
     def __init__(
         self,
         model_name: str = "llama-3.3-70b-versatile",
+        model_name_rewrite: str = "llama-3.1-8b-instant",  # Blazing-fast 8B model for query reformulations
         temperature_rewrite: float = 0.0,
         temperature_generation: float = 0.2,
         max_tokens_generation: int = 1000,
     ):
         self.model_name = model_name
+        self.model_name_rewrite = model_name_rewrite
         self.temperature_rewrite = temperature_rewrite
         self.temperature_generation = temperature_generation
         self.max_tokens_generation = max_tokens_generation
@@ -38,18 +40,59 @@ class RAGResponseGenerator:
         )
         init_db()
 
+    def _is_conversational_greeting(self, question: str) -> bool:
+        """Detects if the query is a simple greeting or conversational opener."""
+        clean_q = question.strip().lower().rstrip('?').rstrip('.')
+        greetings = {
+            "hi", "hello", "hey", "good morning", "good afternoon", "good evening",
+            "how are you", "who are you", "what is your name", "what are you",
+            "are you there", "yo", "sup", "greetings"
+        }
+        return clean_q in greetings
+
+    def _is_history_recall(self, question: str) -> bool:
+        """Detects if the query is asking to recall past conversation history questions."""
+        clean_q = question.strip().lower().rstrip('?').rstrip('.')
+        history_keywords = {
+            "first question", "second question", "third question", 
+            "previous question", "what did i ask", "what was my first",
+            "what was my second", "what was my third", "recall my first",
+            "recall my second", "recall my third", "what is the first",
+            "what is the second", "what is the third"
+        }
+        return any(kw in clean_q for kw in history_keywords)
+
+    def _should_bypass_rewrite(self, question: str) -> bool:
+        """Heuristically decides if the question is already standalone to save reformulation latency."""
+        clean_q = question.strip().lower()
+        # Pronouns/reference words that require history context to resolve
+        pronouns = ["it", "them", "they", "he", "she", "him", "her", "this", "that", "these", "those"]
+        
+        # If the query contains reference words, we MUST reformulate
+        if any(f" {p} " in f" {clean_q} " for p in pronouns):
+            return False
+            
+        # If the query starts with common complete question stems, bypass reformulation
+        stems = ["what is", "how to", "why does", "explain the", "symptoms of", "treatment for"]
+        if any(clean_q.startswith(s) for s in stems):
+            return True
+            
+        # Default to False (safer reformulation fallback)
+        return False
+
     def _reformulate_question(self, question: str, context_window: list[dict]) -> str:
-        """Uses LLM to rewrite a follow-up query into a standalone query using context history."""
-        if not context_window:
+        """Uses a ultra-fast 8B model to reformulate follow-ups in ~0.2 seconds."""
+        if not context_window or self._should_bypass_rewrite(question):
             return question
 
         rewrite_prompt = build_contextualize_prompt(question, context_window)
         try:
+            # Using model_name_rewrite (llama-3.1-8b-instant) instead of the heavy 70B model
             rewrite_response = self.client.chat.completions.create(
-                model=self.model_name,
+                model=self.model_name_rewrite,
                 messages=[{"role": "user", "content": rewrite_prompt}],
                 temperature=self.temperature_rewrite,
-                max_tokens=150
+                max_tokens=100
             )
             candidate_question = rewrite_response.choices[0].message.content.strip()
             if candidate_question:
@@ -79,7 +122,7 @@ class RAGResponseGenerator:
         }
 
     def generate_answer(self, question: str, session_id: str = None, email: str = None) -> dict:
-        """Generates a complete answer using standard non-streaming completions (uses Redis cache fallback)."""
+        """Generates a complete answer (highly optimized for speed)."""
         if session_id is None:
             session_id = str(uuid.uuid4())
 
@@ -87,18 +130,26 @@ class RAGResponseGenerator:
         if cached_payload:
             try:
                 parsed = json.loads(cached_payload)
-                # Save cache hit interaction to MongoDB history
                 save_message(session_id, "user", question, email)
                 save_message(session_id, "model", parsed["answer"], email)
                 return parsed
             except Exception:
                 pass
 
-        context_window = get_history(session_id, limit=6)
-        standalone_question = self._reformulate_question(question, context_window)
-        docs = retrieve_context(standalone_question)
+        # Dynamically set limit based on history recall request
+        history_limit = 100 if self._is_history_recall(question) else 6
+        context_window = get_history(session_id, limit=history_limit)
+        
+        # Bypass vector search if it is a general greeting or history recall
+        if self._is_conversational_greeting(question) or self._is_history_recall(question):
+            docs = []
+            standalone_question = question
+        else:
+            standalone_question = self._reformulate_question(question, context_window)
+            docs = retrieve_context(standalone_question)
 
-        if not docs:
+        # If it is not a greeting/history recall and no documents exist, return RAG fallback
+        if not docs and not self._is_conversational_greeting(question) and not self._is_history_recall(question):
             no_info_ans = "Information not found in the medical knowledge base."
             save_message(session_id, "user", question, email)
             save_message(session_id, "model", no_info_ans, email)
@@ -108,9 +159,10 @@ class RAGResponseGenerator:
                 "metadata": self._build_metadata_package(session_id, question, standalone_question, [])
             }
 
+        # Format context blocks with sequential indices so LLM knows exactly how to cite [1], [2], etc.
         context = "\n\n".join(
-            f"[Source Document: {doc.get('source', 'Unknown')}, Page: {doc.get('page', 'Unknown')}]\nText: {doc['text']}"
-            for doc in docs
+            f"Source [{idx + 1}]: [Document: {doc.get('source', 'Unknown')}, Page: {doc.get('page', 'Unknown')}]\nText: {doc['text']}"
+            for idx, doc in enumerate(docs)
         )
         prompt = build_prompt(question=question, context=context, chat_history=context_window)
 
@@ -138,7 +190,7 @@ class RAGResponseGenerator:
             return {"answer": "Error generating response.", "sources": [], "metadata": {"error": str(e)}}
 
     def generate_answer_stream(self, question: str, session_id: str = None, email: str = None) -> Generator[str, None, None]:
-        """Generates and streams answer tokens in Server-Sent Events (SSE) format."""
+        """Generates and streams answer tokens in Server-Sent Events (SSE) format (highly optimized)."""
         if session_id is None:
             session_id = str(uuid.uuid4())
 
@@ -149,7 +201,6 @@ class RAGResponseGenerator:
                 parsed = json.loads(cached_payload)
                 cached_text = parsed["answer"]
 
-                # Save cache hit interaction to MongoDB history
                 save_message(session_id, "user", question, email)
                 save_message(session_id, "model", cached_text, email)
 
@@ -163,21 +214,32 @@ class RAGResponseGenerator:
             except Exception as e:
                 logger.error(f"Failed to read from cache: {e}")
 
-        context_window = get_history(session_id, limit=6)
-        standalone_question = self._reformulate_question(question, context_window)
-        docs = retrieve_context(standalone_question)
+        # Dynamically set limit based on history recall request
+        history_limit = 100 if self._is_history_recall(question) else 6
+        context_window = get_history(session_id, limit=history_limit)
+        
+        # Bypass vector search if it is a general greeting or history recall
+        if self._is_conversational_greeting(question) or self._is_history_recall(question):
+            docs = []
+            standalone_question = question
+        else:
+            standalone_question = self._reformulate_question(question, context_window)
+            docs = retrieve_context(standalone_question)
+
         save_message(session_id, "user", question, email)
 
-        if not docs:
+        # If it is not a greeting/history recall and no documents exist, return RAG fallback
+        if not docs and not self._is_conversational_greeting(question) and not self._is_history_recall(question):
             no_info_ans = "Information not found in the medical knowledge base."
             save_message(session_id, "model", no_info_ans, email)
             yield f"data: {json.dumps({'token': no_info_ans, 'metadata': self._build_metadata_package(session_id, question, standalone_question, [])})}\n\n"
             yield "data: [DONE]\n\n"
             return
 
+        # Format context blocks with sequential indices so LLM knows exactly how to cite [1], [2], etc.
         context = "\n\n".join(
-            f"[Source Document: {doc.get('source', 'Unknown')}, Page: {doc.get('page', 'Unknown')}]\nText: {doc['text']}"
-            for doc in docs
+            f"Source [{idx + 1}]: [Document: {doc.get('source', 'Unknown')}, Page: {doc.get('page', 'Unknown')}]\nText: {doc['text']}"
+            for idx, doc in enumerate(docs)
         )
         prompt = build_prompt(question=question, context=context, chat_history=context_window)
         metadata = self._build_metadata_package(session_id, question, standalone_question, docs)
