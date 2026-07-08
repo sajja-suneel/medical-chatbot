@@ -1,3 +1,4 @@
+// frontend/components/chat/ChatWindow.tsx
 'use client';
 
 import React, { useRef, useEffect, useState } from 'react';
@@ -18,10 +19,11 @@ interface ChatWindowProps {
   onThemeChange: (newTheme: 'light' | 'dark') => void;
   showIndexer: boolean;
   onToggleIndexer: () => void;
+  weatherCity: string | { lat: number; lon: number } | null; // Prop definition
 }
 
 export default function ChatWindow({ 
-  messages, isLoading, onSendMessage, theme, onThemeChange, showIndexer, onToggleIndexer 
+  messages, isLoading, onSendMessage, theme, onThemeChange, showIndexer, onToggleIndexer, weatherCity 
 }: ChatWindowProps) {
   const [inputText, setInputText] = useState('');
   const [selectedChunk, setSelectedChunk] = useState<ChunkDetail | null>(null);
@@ -99,7 +101,13 @@ export default function ChatWindow({
       flex: 1, display: 'flex', flexDirection: 'column', height: '100%', position: 'relative',
       background: isDark ? '#111827' : '#F8FAFC' 
     }}>
-      <HeaderBar theme={theme} onThemeChange={onThemeChange} showIndexer={showIndexer} onToggleIndexer={onToggleIndexer} />
+      <HeaderBar 
+        theme={theme} 
+        onThemeChange={onThemeChange} 
+        showIndexer={showIndexer} 
+        onToggleIndexer={onToggleIndexer} 
+        weatherCity={weatherCity} // Prop passed down here
+      />
       
       <div ref={messagesFeedRef} style={{ flex: 1, overflowY: 'auto', padding: '24px 32px' }}>
         {messages.map((msg) => (

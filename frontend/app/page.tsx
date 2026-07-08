@@ -42,7 +42,10 @@ export default function Home() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [showIndexer, setShowIndexer] = useState<boolean>(true);
 
-  // Load Auth State, User-Specific Sessions, and Theme on mount
+  // Weather state (Accepts either City string or Lat/Lon GPS coordinates)
+  const [weatherCity, setWeatherCity] = useState<string | { lat: number; lon: number } | null>(null);
+
+  // Load Auth State, User Sessions, Theme, and GPS Geolocation on mount
   useEffect(() => {
     const loginSession = localStorage.getItem('clinic_logged_in');
     const savedUser = localStorage.getItem('clinic_logged_in_user');
@@ -60,6 +63,24 @@ export default function Home() {
     if (savedTheme) {
       setTheme(savedTheme);
     }
+
+    // Geolocation API to fetch local coordinates
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setWeatherCity({
+            lat: position.coords.latitude,
+            lon: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.warn("Geolocation denied or failed. Defaulting to Hyderabad.", error);
+          setWeatherCity("Tirupati");
+        }
+      );
+    } else {
+      setWeatherCity("Tirupati");
+    }
   }, []);
 
   // Update HTML theme attribute
@@ -68,7 +89,7 @@ export default function Home() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // API Call: Fetch all unique threads for user from MongoDB
+  // API Call: Fetch sessions
   const fetchSessions = async (authToken: string) => {
     try {
       const res = await fetch('http://localhost:8000/sessions', {
@@ -110,17 +131,13 @@ export default function Home() {
   const startNewSession = () => {
     const newId = crypto.randomUUID();
     setActiveSessionId(newId);
-    
-    const welcomeMsg: Message = {
+    setMessages([{
       id: crypto.randomUUID(),
       role: 'model',
       content: "Welcome to Sri Venkateshwara Hospital.\nI can help you schedule a healthcare checkup or answer medical queries.",
-    };
-    
-    setMessages([welcomeMsg]);
+    }]);
   };
 
-  // API Call: Retrieve messages for session from MongoDB
   const selectSession = async (sessionId: string, customToken?: string) => {
     const token = customToken || currentUser?.token;
     if (!token) return;
@@ -153,7 +170,6 @@ export default function Home() {
     }
   };
 
-  // API Call: Delete thread and all its message documents from MongoDB
   const deleteSession = async (id: string) => {
     const token = currentUser?.token;
     if (!token) return;
@@ -263,6 +279,10 @@ export default function Home() {
             }
             if (parsed.metadata) {
               accumulatedMetadata = parsed.metadata;
+              // Reactive weather update: checks if city is returned in response
+              if (parsed.metadata.weather_city) {
+                setWeatherCity(parsed.metadata.weather_city);
+              }
             }
 
             setMessages((prev) =>
@@ -282,7 +302,6 @@ export default function Home() {
         }
       }
 
-      // Re-fetch sessions from MongoDB to update the sidebar titles dynamically
       await fetchSessions(token);
 
     } catch (error) {
@@ -290,7 +309,7 @@ export default function Home() {
       const errorMsg: Message = {
         id: crypto.randomUUID(),
         role: 'model',
-        content: 'Error: Could not retrieve response from server. Make sure the backend is running.',
+        content: 'Error: Could not retrieve response from server.',
         timestamp: getCurrentFormattedTime()
       };
       setMessages([...updatedMessages, errorMsg]);
@@ -326,6 +345,7 @@ export default function Home() {
         onThemeChange={setTheme}
         showIndexer={showIndexer}
         onToggleIndexer={() => setShowIndexer(!showIndexer)}
+        weatherCity={weatherCity} // Prop forwarded here
       />
 
       {showIndexer && (
